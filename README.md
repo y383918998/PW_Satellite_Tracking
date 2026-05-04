@@ -41,6 +41,16 @@ The current repository contains the Hardware_Agent prototype:
 
 ## Basic Usage
 
+Create a local configuration file first:
+
+```bash
+cp .env.example .env
+```
+
+Then edit `.env` with the real camera host, WiFi credentials, serial device,
+and MQTT settings for your deployment. The scripts load `.env` automatically
+and existing shell environment variables still take priority.
+
 Windows:
 
 ```powershell

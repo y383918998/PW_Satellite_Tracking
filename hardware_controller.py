@@ -28,26 +28,93 @@ from pathlib import Path
 from typing import Optional, Tuple
 
 
-HAMLIB_EXECUTABLE = r"D:\hamlib-w64-4.7.1\bin\rotctld.exe"
+def load_dotenv(path: Path = Path(".env")) -> None:
+    """
+    Load KEY=VALUE pairs from a local .env file without third-party packages.
+
+    Existing environment variables win over .env values, which allows temporary
+    command-line overrides during field tests.
+    """
+    if not path.exists():
+        return
+
+    for line_number, raw_line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+
+        if "=" not in line:
+            print(f"Warning: Ignoring invalid .env line {line_number}: {raw_line!r}")
+            continue
+
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+
+        if not key:
+            print(f"Warning: Ignoring .env line {line_number} with empty key.")
+            continue
+
+        os.environ.setdefault(key, value)
+
+
+def getenv_float(name: str, default: float) -> float:
+    """Read a float from the environment and fall back safely if invalid."""
+    raw_value = os.getenv(name)
+    if raw_value is None:
+        return default
+
+    try:
+        return float(raw_value)
+    except ValueError:
+        print(f"Warning: Invalid float for {name}={raw_value!r}. Using {default}.")
+        return default
+
+
+def getenv_int(name: str, default: int) -> int:
+    """Read an integer from the environment and fall back safely if invalid."""
+    raw_value = os.getenv(name)
+    if raw_value is None:
+        return default
+
+    try:
+        return int(raw_value)
+    except ValueError:
+        print(f"Warning: Invalid integer for {name}={raw_value!r}. Using {default}.")
+        return default
+
+
+load_dotenv()
+
+HAMLIB_EXECUTABLE = os.getenv("HAMLIB_EXECUTABLE_WINDOWS", r"D:\hamlib-w64-4.7.1\bin\rotctld.exe")
+HAMLIB_MODEL = os.getenv("HAMLIB_MODEL", "1")
+HAMLIB_SERIAL_DEVICE = os.getenv("HAMLIB_SERIAL_DEVICE_WINDOWS", "")
+HAMLIB_SERIAL_SPEED = os.getenv("HAMLIB_SERIAL_SPEED", "115200")
+HAMLIB_HOST = os.getenv("HAMLIB_HOST", "127.0.0.1")
+HAMLIB_PORT = getenv_int("HAMLIB_PORT", 4533)
+RIGCTL_PORT = getenv_int("RIGCTL_PORT", 4532)
+SOCKET_TIMEOUT = getenv_float("SOCKET_TIMEOUT", 2.0)
+
 HAMLIB_ARGUMENTS = [
     "-m",
-    "1",
-    #"-r",
-    #"COM7",
+    HAMLIB_MODEL,
     "-s",
-    "115200",
+    HAMLIB_SERIAL_SPEED,
     "-t",
-    "4533",
+    str(HAMLIB_PORT),
     "-T",
-    "127.0.0.1",
+    HAMLIB_HOST,
     "-C",
     "timeout=200",
     "-vvv"
 ]
 
-DEFAULT_CENTER_AZ = 180.0
-DEFAULT_CENTER_EL = 167.5
-SAFE_WINDOW_DEGREES = 20.0
+if HAMLIB_SERIAL_DEVICE:
+    HAMLIB_ARGUMENTS[2:2] = ["-r", HAMLIB_SERIAL_DEVICE]
+
+DEFAULT_CENTER_AZ = getenv_float("DEFAULT_CENTER_AZ", 180.0)
+DEFAULT_CENTER_EL = getenv_float("DEFAULT_CENTER_EL", 167.5)
+SAFE_WINDOW_DEGREES = getenv_float("SAFE_WINDOW_DEGREES", 20.0)
 
 CAMERA_SNAPSHOT_URL = os.getenv(
     "CAMERA_SNAPSHOT_URL",
@@ -62,10 +129,10 @@ class NetworkController:
 
     def __init__(
         self,
-        host: str = "127.0.0.1",
-        hamlib_port: int = 4533,
-        sdr_port: int = 4532,
-        timeout: float = 2.0,
+        host: str = HAMLIB_HOST,
+        hamlib_port: int = HAMLIB_PORT,
+        sdr_port: int = RIGCTL_PORT,
+        timeout: float = SOCKET_TIMEOUT,
     ) -> None:
         self.host = host
         self.hamlib_port = hamlib_port
@@ -354,9 +421,9 @@ def main() -> None:
             f"EL [{limits['EL_MIN']:.3f}, {limits['EL_MAX']:.3f}]"
         )
 
-        controller = NetworkController(timeout=2.0)
+        controller = NetworkController(timeout=SOCKET_TIMEOUT)
         controller.connect_all()
-        collector = DatasetCollector(CameraController(timeout=2.0))
+        collector = DatasetCollector(CameraController(timeout=SOCKET_TIMEOUT))
 
         sdr_unavailable_reported = False
 

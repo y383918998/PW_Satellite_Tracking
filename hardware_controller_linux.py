@@ -27,19 +27,77 @@ from pathlib import Path
 from typing import Optional, Tuple
 
 
-DEFAULT_ROTCTLD_EXECUTABLE = "rotctld"
-DEFAULT_ROTATOR_MODEL = "1"
-DEFAULT_SERIAL_DEVICE = "/dev/ttyUSB0"
-DEFAULT_SERIAL_SPEED = "115200"
-DEFAULT_HAMLIB_PORT = 4533
-DEFAULT_RIGCTL_PORT = 4532
-DEFAULT_HOST = "127.0.0.1"
-DEFAULT_TIMEOUT = 2.0
+def load_dotenv(path: Path = Path(".env")) -> None:
+    """
+    Load KEY=VALUE pairs from a local .env file without third-party packages.
 
-DEFAULT_CENTER_AZ = 180.0
-DEFAULT_CENTER_EL = 167.5
-DEFAULT_SAFE_WINDOW_DEGREES = 20.0
-DEFAULT_CAPTURE_INTERVAL_SECONDS = 5.0
+    Existing environment variables win over .env values, which allows temporary
+    command-line overrides during field tests.
+    """
+    if not path.exists():
+        return
+
+    for line_number, raw_line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+
+        if "=" not in line:
+            print(f"Warning: Ignoring invalid .env line {line_number}: {raw_line!r}")
+            continue
+
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+
+        if not key:
+            print(f"Warning: Ignoring .env line {line_number} with empty key.")
+            continue
+
+        os.environ.setdefault(key, value)
+
+
+def getenv_float(name: str, default: float) -> float:
+    """Read a float from the environment and fall back safely if invalid."""
+    raw_value = os.getenv(name)
+    if raw_value is None:
+        return default
+
+    try:
+        return float(raw_value)
+    except ValueError:
+        print(f"Warning: Invalid float for {name}={raw_value!r}. Using {default}.")
+        return default
+
+
+def getenv_int(name: str, default: int) -> int:
+    """Read an integer from the environment and fall back safely if invalid."""
+    raw_value = os.getenv(name)
+    if raw_value is None:
+        return default
+
+    try:
+        return int(raw_value)
+    except ValueError:
+        print(f"Warning: Invalid integer for {name}={raw_value!r}. Using {default}.")
+        return default
+
+
+load_dotenv()
+
+DEFAULT_ROTCTLD_EXECUTABLE = "rotctld"
+DEFAULT_ROTATOR_MODEL = os.getenv("HAMLIB_MODEL", "1")
+DEFAULT_SERIAL_DEVICE = os.getenv("HAMLIB_SERIAL_DEVICE_LINUX", "/dev/ttyUSB0")
+DEFAULT_SERIAL_SPEED = os.getenv("HAMLIB_SERIAL_SPEED", "115200")
+DEFAULT_HAMLIB_PORT = getenv_int("HAMLIB_PORT", 4533)
+DEFAULT_RIGCTL_PORT = getenv_int("RIGCTL_PORT", 4532)
+DEFAULT_HOST = os.getenv("HAMLIB_HOST", "127.0.0.1")
+DEFAULT_TIMEOUT = getenv_float("SOCKET_TIMEOUT", 2.0)
+
+DEFAULT_CENTER_AZ = getenv_float("DEFAULT_CENTER_AZ", 180.0)
+DEFAULT_CENTER_EL = getenv_float("DEFAULT_CENTER_EL", 167.5)
+DEFAULT_SAFE_WINDOW_DEGREES = getenv_float("SAFE_WINDOW_DEGREES", 20.0)
+DEFAULT_CAPTURE_INTERVAL_SECONDS = getenv_float("CAPTURE_INTERVAL_SECONDS", 5.0)
 
 DEFAULT_CAMERA_SNAPSHOT_URL = os.getenv(
     "CAMERA_SNAPSHOT_URL",
