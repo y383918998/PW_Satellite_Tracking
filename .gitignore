@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+
+captures/
+captures_linux/
+
+.env
+*.local.json
+config.local.*
+
+.venv/
+venv/
+
+.DS_Store
+Thumbs.db
